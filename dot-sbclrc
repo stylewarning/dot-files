@@ -1,0 +1,71 @@
+;;; Load Quicklisp.
+
+#-quicklisp
+(let ((quicklisp-init (merge-pathnames "quicklisp/setup.lisp"
+                                       (user-homedir-pathname))))
+  (when (probe-file quicklisp-init)
+    (load quicklisp-init)))
+
+;;; Tell Quicklisp where to look for code.
+
+#+quicklisp
+(progn
+  (push "/home/robert/Source/My/" ql:*local-project-directories*)
+  (push "/home/robert/Source/Foreign/" ql:*local-project-directories*)
+  (push "/home/robert/Source/System/stumpwm/" ql:*local-project-directories*))
+
+#+quicklisp
+(progn
+  (setf QUICKLISP-CLIENT:*QUICKLOAD-VERBOSE* t))
+
+;;;; Nicer command line (h/t Juan Bello-Rivas)
+(when (member "--bueno" sb-ext:*posix-argv* :test 'equal)
+  (when (interactive-stream-p *terminal-io*)
+    (require :linedit)
+    (require :terminfo)
+    (funcall (intern "INSTALL-REPL" :linedit) :wrap-current t :eof-quits t)))
+
+;;;; SBCL options
+
+;;; Annotate disassembled output
+
+(setf sb-ext:*disassemble-annotate* t)
+
+;;; Derive types always
+;;;
+;;; Sometimes enabling this option leads to otherwise working
+;;; libraries to not work.
+
+(setf sb-ext:*derive-function-types* t)
+
+;;;; Other Misc Options
+
+#+ignore
+(when (uiop:directory-exists-p "/media/bigbux/")
+  (sb-posix:setenv "HYPERGEOMETRICA_WORK" "/media/bigbux/" 1))
+
+;;;; Utility functions
+
+(defun :clean-cache (&key force)
+  (format t "~&Cleaning the cache!~%")
+  #+quicklisp
+  (progn
+    (format t "Cleaning old Quicklisp downloads...~%")
+    (ql:register-local-projects)
+    (ql-dist:clean (ql-dist:dist "quicklisp")))
+  (format t "Cleaning fasl cache...~%")
+  (uiop:delete-directory-tree asdf:*user-cache*
+                              :if-does-not-exist ':ignore
+                              :validate (if force
+                                            t
+                                            (constantly
+                                             (y-or-n-p "Delete ~A?" asdf:*user-cache*))))
+  ;; All done.
+  t)
+
+(defmacro :ql (system &rest systems)
+  (push system systems)
+  `(progn
+    ,@(loop :for sys :in systems
+            :collect `(ql:quickload ',sys))
+      (in-package ,(string (first (last systems))))))
